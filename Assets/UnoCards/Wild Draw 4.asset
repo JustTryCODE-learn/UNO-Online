@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b38e41a5205b83c4ea1fbffd2af2af8a, type: 3}
+  m_Name: Wild Draw 4
+  m_EditorClassIdentifier: 
+  color: 4
+  value: 14
+  cardSprite: {fileID: -1760580100, guid: 752fdbbc4337fa643a59c3c269f940ea, type: 3}
+  isWild: 1
+  redVersion: {fileID: 11400000, guid: f563ca66514c7884ba289c24f71e17cc, type: 2}
+  blueVersion: {fileID: 11400000, guid: f04e01e80dae1314295ca50210786383, type: 2}
+  greenVersion: {fileID: 11400000, guid: 084f7765a65152446831835689659ff8, type: 2}
+  yellowVersion: {fileID: 11400000, guid: c17c6fb303ccb5a49a505424dbe47a0b, type: 2}
