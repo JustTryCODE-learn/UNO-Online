@@ -13,13 +13,14 @@ public class HandManager : MonoBehaviour
         UnoCard data = FindObjectOfType<DeckManager>().DrawCard();
         if (data != null)
         {
-            // FIX: The second argument 'handParent' tells Unity WHERE to put the card
+            // 1. ADD DATA TO THE LIST
+            hand.Add(data);
+            // 2. SPAWN THE UI
             GameObject newCard = Instantiate(cardPrefab, handParent);
-
-            // Ensure the scale is reset to 1 (prevents the "too small" issue)
             newCard.transform.localScale = Vector3.one;
-
-            newCard.GetComponent<CardDisplay>().SetCard(data);
+            // 3. INITIALIZE THE CARD
+            CardDisplay display = newCard.GetComponent<CardDisplay>();
+            display.SetCard(data);
         }
     }
 }

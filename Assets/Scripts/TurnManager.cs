@@ -99,4 +99,14 @@ public class TurnManager : MonoBehaviour
         Debug.Log("Player Skipped!");
         NextTurn(); // Proceed to the person after the skipped one
     }
+
+    public void PlayerRequestsDraw()
+    {
+        // Only allow drawing if it's Player 1 (Index 0)
+        if (currentPlayerIndex == 0) 
+        {
+            playerHands[0].DrawCardFromDeck();
+            NextTurn(); // End turn after drawing
+        }
+    }
 }

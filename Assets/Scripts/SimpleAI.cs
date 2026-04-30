@@ -47,7 +47,6 @@ public class SimpleAI : MonoBehaviour
         {
             Debug.Log(gameObject.name + " has no match, drawing card...");
             handManager.DrawCardFromDeck();
-
             // Standard UNO: After drawing, if it's playable, AI plays it. 
             // For now, let's just end the turn.
             turnManager.NextTurn();
