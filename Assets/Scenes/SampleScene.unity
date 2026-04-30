@@ -456,7 +456,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   hand: []
   cardPrefab: {fileID: 4314973128133459924, guid: df631d9024c4f924eb2879064d3c1544, type: 3}
-  handParent: {fileID: 0}
+  handParent: {fileID: 314942844}
 --- !u!114 &314942847
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -476,8 +476,8 @@ MonoBehaviour:
     m_Bottom: 0
   m_ChildAlignment: 4
   m_Spacing: 0
-  m_ChildForceExpandWidth: 1
-  m_ChildForceExpandHeight: 1
+  m_ChildForceExpandWidth: 0
+  m_ChildForceExpandHeight: 0
   m_ChildControlWidth: 1
   m_ChildControlHeight: 1
   m_ChildScaleWidth: 0
@@ -774,7 +774,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   hand: []
   cardPrefab: {fileID: 4314973128133459924, guid: df631d9024c4f924eb2879064d3c1544, type: 3}
-  handParent: {fileID: 0}
+  handParent: {fileID: 503237530}
 --- !u!114 &503237532
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -794,8 +794,8 @@ MonoBehaviour:
     m_Bottom: 0
   m_ChildAlignment: 4
   m_Spacing: 0
-  m_ChildForceExpandWidth: 1
-  m_ChildForceExpandHeight: 1
+  m_ChildForceExpandWidth: 0
+  m_ChildForceExpandHeight: 0
   m_ChildControlWidth: 1
   m_ChildControlHeight: 1
   m_ChildScaleWidth: 0
@@ -1106,7 +1106,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   hand: []
   cardPrefab: {fileID: 4314973128133459924, guid: df631d9024c4f924eb2879064d3c1544, type: 3}
-  handParent: {fileID: 0}
+  handParent: {fileID: 644732507}
 --- !u!114 &644732510
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1126,8 +1126,8 @@ MonoBehaviour:
     m_Bottom: 0
   m_ChildAlignment: 4
   m_Spacing: 0
-  m_ChildForceExpandWidth: 1
-  m_ChildForceExpandHeight: 1
+  m_ChildForceExpandWidth: 0
+  m_ChildForceExpandHeight: 0
   m_ChildControlWidth: 1
   m_ChildControlHeight: 1
   m_ChildScaleWidth: 0
@@ -1563,7 +1563,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   hand: []
   cardPrefab: {fileID: 4314973128133459924, guid: df631d9024c4f924eb2879064d3c1544, type: 3}
-  handParent: {fileID: 0}
+  handParent: {fileID: 1322790438}
 --- !u!114 &1322790441
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1583,8 +1583,8 @@ MonoBehaviour:
     m_Bottom: 0
   m_ChildAlignment: 4
   m_Spacing: 0
-  m_ChildForceExpandWidth: 1
-  m_ChildForceExpandHeight: 1
+  m_ChildForceExpandWidth: 0
+  m_ChildForceExpandHeight: 0
   m_ChildControlWidth: 1
   m_ChildControlHeight: 1
   m_ChildScaleWidth: 0
