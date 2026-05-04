@@ -27,6 +27,7 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback,
     public TMP_Text penaltyText;
     public GameObject colorPickerPanel;
     public GameObject endTurnButton;
+    public GameObject SlapButton;
 
     private readonly List<int> actorOrder = new List<int>();
     private readonly Dictionary<int, List<NetCard>> hands = new Dictionary<int, List<NetCard>>();
