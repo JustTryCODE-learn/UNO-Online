@@ -57,16 +57,16 @@ public class SimpleAI : MonoBehaviour
     {
         handManager.hand.Remove(card);
 
-        // If it's a wild, AI just picks a random color (or their most common color)
-        UnoCard.CardColor chosenColor = UnoCard.CardColor.Red;
-        if (card.isWild)
+        foreach (Transform child in handManager.handParent)
         {
-            chosenColor = (UnoCard.CardColor)Random.Range(0, 4);
+            if (child.GetComponent<CardDisplay>().cardData == card)
+            {
+                Destroy(child.gameObject);
+                break;
+            }
         }
 
-        discardPile.UpdatePile(card, chosenColor);
-
-        // Clean up the UI card (this assumes your HandManager cleans up UI)
-        // For now, we rely on your UpdatePile logic to move the turn forward.
+        discardPile.UpdatePile(card);
+        turnManager.NextTurn();
     }
 }

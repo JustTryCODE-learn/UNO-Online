@@ -13,14 +13,10 @@ public class HandManager : MonoBehaviour
         UnoCard data = FindObjectOfType<DeckManager>().DrawCard();
         if (data != null)
         {
-            // 1. ADD DATA TO THE LIST
             hand.Add(data);
-            // 2. SPAWN THE UI
             GameObject newCard = Instantiate(cardPrefab, handParent);
             newCard.transform.localScale = Vector3.one;
-            // 3. INITIALIZE THE CARD
-            CardDisplay display = newCard.GetComponent<CardDisplay>();
-            display.SetCard(data);
+            newCard.GetComponent<CardDisplay>().SetCard(data);
         }
     }
 }

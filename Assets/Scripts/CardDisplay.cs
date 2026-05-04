@@ -24,18 +24,17 @@ public class CardDisplay : MonoBehaviour, IPointerClickHandler
     }
     public void OnPointerClick(PointerEventData eventData)
     {
+        TurnManager tm = FindObjectOfType<TurnManager>();
+        if (tm.currentPlayerIndex != 0) return;
+
         if (discardPile.CanPlayCard(cardData))
         {
-            if (cardData.isWild)
-            {
-                FindObjectOfType<ColorPicker>().Show(cardData);
-                Destroy(gameObject);
-            }
-            else
-            {
-                discardPile.UpdatePile(cardData);
-                Destroy(gameObject);
-            }
+            discardPile.UpdatePile(cardData);
+            
+            FindObjectOfType<HandManager>().hand.Remove(cardData);
+            Destroy(gameObject);
+            
+            tm.NextTurn();
         }
         else
         {

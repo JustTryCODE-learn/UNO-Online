@@ -11,6 +11,7 @@ public class TurnManager : MonoBehaviour
 
     public int currentPlayerIndex = 0;
     public bool isClockwise = true;
+    public bool isDealing = true;
 
     void Start()
     {
@@ -26,25 +27,37 @@ public class TurnManager : MonoBehaviour
 
     IEnumerator InitialDeal()
     {
+        isDealing = true;
         Debug.Log("Dealing cards...");
 
-        // Deal 7 cards to each player, one by one (for a cool effect)
         for (int i = 0; i < 7; i++)
         {
             foreach (HandManager hand in playerHands)
             {
                 hand.DrawCardFromDeck();
-                yield return new WaitForSeconds(0.1f); // Short delay between each card
+                yield return new WaitForSeconds(0.1f);
             }
         }
 
-        Debug.Log("Dealing complete!");
+        Debug.Log("Dealing complete! Waiting for Player 1.");
+        currentPlayerIndex = 0;
+        isDealing = false; // Now turns can finally start
+    }
 
-        // Check if the FIRST player is an AI and trigger them
-        SimpleAI firstAI = playerHands[currentPlayerIndex].GetComponent<SimpleAI>();
-        if (firstAI != null)
+    public void NextTurn()
+    {
+        // If we are still dealing, ignore all turn requests!
+        if (isDealing) return; 
+
+        int step = isClockwise ? 1 : -1;
+        currentPlayerIndex = (currentPlayerIndex + step + players.Count) % players.Count;
+
+        Debug.Log("It is now " + players[currentPlayerIndex] + "'s turn.");
+
+        SimpleAI currentAI = playerHands[currentPlayerIndex].GetComponent<SimpleAI>();
+        if (currentAI != null)
         {
-            firstAI.TakeTurn();
+            currentAI.TakeTurn();
         }
     }
 
@@ -65,22 +78,6 @@ public class TurnManager : MonoBehaviour
 
         Debug.Log(players[nextPlayer] + " forced to draw " + amount + " cards!");
         HandleSkip(); // Skip them because they just drew cards
-    }
-
-    public void NextTurn()
-    {
-        int step = isClockwise ? 1 : -1;
-        currentPlayerIndex = (currentPlayerIndex + step + players.Count) % players.Count;
-
-        Debug.Log("It is now " + players[currentPlayerIndex] + "'s turn.");
-
-        // Check if the current player has a SimpleAI component
-        SimpleAI currentAI = playerHands[currentPlayerIndex].GetComponent<SimpleAI>();
-
-        if (currentAI != null)
-        {
-            currentAI.TakeTurn();
-        }
     }
 
     public void HandleReverse()

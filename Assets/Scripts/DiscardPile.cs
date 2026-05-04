@@ -51,7 +51,8 @@ public class DiscardPile : MonoBehaviour
     void Start()
     {
         UnoCard firstCard = FindObjectOfType<DeckManager>().DrawCard();
-        UpdatePile(firstCard);
+        currentCard = firstCard;
+        pileImage.sprite = currentCard.cardSprite;
     }
 
     public bool CanPlayCard(UnoCard cardToPlay)
