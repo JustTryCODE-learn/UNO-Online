@@ -8,7 +8,7 @@ public class TurnManager : MonoBehaviour
 
     // Assign these in the Unity Inspector by dragging your Player/AI objects here
     public List<HandManager> playerHands;
-
+    public bool isProcessingTurn = false;
     public int currentPlayerIndex = 0;
     public bool isClockwise = true;
     public bool isDealing = true;
@@ -46,8 +46,18 @@ public class TurnManager : MonoBehaviour
 
     public void NextTurn()
     {
-        // If we are still dealing, ignore all turn requests!
-        if (isDealing) return; 
+        // Prevent overlapping turn calls
+        if (isDealing || isProcessingTurn) return; 
+        
+        StartCoroutine(NextTurnRoutine());
+    }
+
+    IEnumerator NextTurnRoutine()
+    {
+        isProcessingTurn = true;
+
+        // Small delay so the player can see the card that was just played
+        yield return new WaitForSeconds(1.0f);
 
         int step = isClockwise ? 1 : -1;
         currentPlayerIndex = (currentPlayerIndex + step + players.Count) % players.Count;
@@ -55,10 +65,13 @@ public class TurnManager : MonoBehaviour
         Debug.Log("It is now " + players[currentPlayerIndex] + "'s turn.");
 
         SimpleAI currentAI = playerHands[currentPlayerIndex].GetComponent<SimpleAI>();
+        
         if (currentAI != null)
         {
             currentAI.TakeTurn();
         }
+
+        isProcessingTurn = false;
     }
 
     public int GetNextPlayerIndex()
@@ -99,11 +112,10 @@ public class TurnManager : MonoBehaviour
 
     public void PlayerRequestsDraw()
     {
-        // Only allow drawing if it's Player 1 (Index 0)
-        if (currentPlayerIndex == 0) 
+        if (currentPlayerIndex == 0 && !isDealing && !isProcessingTurn) 
         {
             playerHands[0].DrawCardFromDeck();
-            NextTurn(); // End turn after drawing
+            NextTurn(); // This now uses the delayed Routine
         }
     }
 }

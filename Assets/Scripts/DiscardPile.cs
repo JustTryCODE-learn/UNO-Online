@@ -57,8 +57,22 @@ public class DiscardPile : MonoBehaviour
 
     public bool CanPlayCard(UnoCard cardToPlay)
     {
+        // Safety Check 1: Dealing lock
+        if (turnManager != null && turnManager.isDealing) return false;
+
+        // Safety Check 2: Pile initialized?
+        if (currentCard == null) return false; 
+
+        // Safety Check 3: Is the card in your hand valid? (Fixes line 70)
+        if (cardToPlay == null) 
+        {
+            Debug.LogError("The card you clicked has no data!");
+            return false;
+        }
+
         if (cardToPlay.isWild) return true;
 
+        // Now this comparison is safe
         if (cardToPlay.color == currentCard.color || cardToPlay.value == currentCard.value)
         {
             return true;
