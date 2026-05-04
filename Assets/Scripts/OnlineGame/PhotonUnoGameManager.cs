@@ -7,7 +7,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
+public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback, IPunObservable
 {
     private const byte REQ_PLAY_CARD = 1;
     private const byte REQ_DRAW_CARD = 2;
@@ -641,6 +641,11 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
     public bool IsCardWild(UnoCard card)
     {
         return card != null && card.isWild;
+    }
+
+    public void OnPhotonSerializeView(PhotonStream stream, PhotonMessageInfo info)
+    {
+        
     }
 }
 
