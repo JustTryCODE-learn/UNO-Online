@@ -35,4 +35,12 @@ public class UnoCard : ScriptableObject
             default: return this;
         }
     }
+
+    // Inside UnoCard class[cite: 13]
+    public bool isActionCard 
+    {
+        get {
+            return isSkip || isReverse || isDrawTwo || isWild || value == CardValue.DrawFour;
+        }
+    }
 }
