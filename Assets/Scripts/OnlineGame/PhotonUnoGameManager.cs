@@ -12,6 +12,8 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback,
     private const byte REQ_PLAY_CARD = 1;
     private const byte REQ_DRAW_CARD = 2;
     private const byte REQ_END_TURN = 3;
+    private const byte REQ_SLAP = 4;
+    private const byte REQ_SLAP_EIGHT = 5;
     private const byte STATE_UPDATE = 20;
 
     [Header("Card Assets - same order on all clients")]
@@ -28,6 +30,9 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback,
     public GameObject colorPickerPanel;
     public GameObject endTurnButton;
     public GameObject SlapButton;
+    public GameObject slapSelectorPanel;
+    public GameObject slap8Button;
+    public TMP_Text slap8TimerText;
 
     private readonly List<int> actorOrder = new List<int>();
     private readonly Dictionary<int, List<NetCard>> hands = new Dictionary<int, List<NetCard>>();
@@ -41,14 +46,26 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback,
     private int pendingPenalty = 0;
     private int previousPenaltyValue = 0;
     private int waitingAfterDrawActor = -1;
+    private int waitingForSlapActor = -1;
+    private bool rule8Active = false;
+    private float rule8Timer = 0f;
+    private const float RULE_8_DURATION = 3f;
+    private Dictionary<int, float> rule8Clicks = new Dictionary<int, float>();
     private int nextInstanceId = 1;
 
     private GameStatePacket lastState;
+
+    public GameStatePacket GetLastState()
+    {
+        return lastState;
+    }
 
     private void Awake()
     {
         if (colorPickerPanel != null) colorPickerPanel.SetActive(false);
         if (endTurnButton != null) endTurnButton.SetActive(false);
+        if (slapSelectorPanel != null) slapSelectorPanel.SetActive(false);
+        if (slap8Button != null) slap8Button.SetActive(false);
     }
 
     private void Start()
@@ -63,13 +80,29 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback,
         }
     }
 
-    private void OnEnable()
+    private void Update()
     {
+        // Handle Rule of 8 timer on host
+        if (PhotonNetwork.IsMasterClient && rule8Active)
+        {
+            rule8Timer -= Time.deltaTime;
+            if (rule8Timer <= 0)
+            {
+                rule8Timer = 0;
+                EndRule8();
+            }
+        }
+    }
+
+    public override void OnEnable()
+    {
+        base.OnEnable();
         PhotonNetwork.AddCallbackTarget(this);
     }
 
-    private void OnDisable()
+    public override void OnDisable()
     {
+        base.OnDisable();
         PhotonNetwork.RemoveCallbackTarget(this);
     }
 
@@ -108,6 +141,10 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback,
         pendingPenalty = 0;
         previousPenaltyValue = 0;
         waitingAfterDrawActor = -1;
+        waitingForSlapActor = -1;
+        rule8Active = false;
+        rule8Timer = 0f;
+        rule8Clicks.Clear();
 
         BroadcastState("Game started.");
     }
@@ -214,8 +251,19 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback,
             int actor = (int)photonEvent.CustomData;
             HostEndTurn(actor);
         }
+        else if (photonEvent.Code == REQ_SLAP)
+        {
+            object[] data = (object[])photonEvent.CustomData;
+            int actor = (int)data[0];
+            int targetActor = (int)data[1];
+            HostSlap(actor, targetActor);
+        }
+        else if (photonEvent.Code == REQ_SLAP_EIGHT)
+        {
+            int actor = (int)photonEvent.CustomData;
+            HostRule8Slap(actor);
+        }
     }
-
     public void RequestPlayCard(int instanceId, int chosenColor)
     {
         object[] data =
@@ -247,6 +295,32 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback,
     {
         PhotonNetwork.RaiseEvent(
             REQ_END_TURN,
+            PhotonNetwork.LocalPlayer.ActorNumber,
+            new RaiseEventOptions { Receivers = ReceiverGroup.MasterClient },
+            new SendOptions { Reliability = true }
+        );
+    }
+
+    public void RequestSlap(int targetActor)
+    {
+        object[] data =
+        {
+            PhotonNetwork.LocalPlayer.ActorNumber,
+            targetActor
+        };
+
+        PhotonNetwork.RaiseEvent(
+            REQ_SLAP,
+            data,
+            new RaiseEventOptions { Receivers = ReceiverGroup.MasterClient },
+            new SendOptions { Reliability = true }
+        );
+    }
+
+    public void RequestSlap8()
+    {
+        PhotonNetwork.RaiseEvent(
+            REQ_SLAP_EIGHT,
             PhotonNetwork.LocalPlayer.ActorNumber,
             new RaiseEventOptions { Receivers = ReceiverGroup.MasterClient },
             new SendOptions { Reliability = true }
@@ -304,6 +378,14 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback,
             return;
         }
 
+        // Check if 7 was played (7-Slap mechanic)
+        if (data.value == UnoCard.CardValue.Seven)
+        {
+            waitingForSlapActor = actor;
+            BroadcastState("Player " + actor + " played a 7! Waiting to choose opponent to swap with.");
+            return;
+        }
+
         ApplyCardEffect(data);
         BroadcastState("Card played.");
     }
@@ -338,6 +420,16 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback,
             {
                 MoveTurn(1);
             }
+        }
+        else if (data.value == UnoCard.CardValue.Seven)
+        {
+            // 7-Slap: Player must choose opponent to swap hands with
+            // Don't move turn yet; wait for slap selector
+        }
+        else if (data.number == 8)
+        {
+            // Rule of 8: Start slap race for everyone
+            StartRule8();
         }
         else
         {
@@ -392,6 +484,109 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback,
         waitingAfterDrawActor = -1;
         MoveTurn(1);
         BroadcastState("Turn ended.");
+    }
+
+    private void HostSlap(int actor, int targetActor)
+    {
+        if (waitingForSlapActor != actor)
+        {
+            BroadcastState("Invalid slap: not waiting for slap.");
+            return;
+        }
+
+        if (actor == targetActor)
+        {
+            BroadcastState("Cannot slap yourself.");
+            return;
+        }
+
+        if (!hands.ContainsKey(targetActor))
+        {
+            BroadcastState("Invalid target player.");
+            return;
+        }
+
+        // Swap hands
+        List<NetCard> actorHand = hands[actor];
+        List<NetCard> targetHand = hands[targetActor];
+
+        hands[actor] = targetHand;
+        hands[targetActor] = actorHand;
+
+        waitingForSlapActor = -1;
+        MoveTurn(1);
+        BroadcastState("Player " + actor + " slaped and swapped hands with Player " + targetActor + "!");
+    }
+
+    private void StartRule8()
+    {
+        rule8Active = true;
+        rule8Timer = RULE_8_DURATION;
+        rule8Clicks.Clear();
+        BroadcastState("An 8 was played! SLAP THE BUTTON! Last person to slap gets +2 cards!");
+    }
+
+    private void HostRule8Slap(int actor)
+    {
+        if (!rule8Active) return;
+
+        // Record the click time
+        if (!rule8Clicks.ContainsKey(actor))
+        {
+            rule8Clicks[actor] = rule8Timer;
+        }
+    }
+
+    private void EndRule8()
+    {
+        rule8Active = false;
+
+        List<int> penalizedActors = new List<int>();
+
+        foreach (int actor in actorOrder)
+        {
+            if (!rule8Clicks.ContainsKey(actor))
+            {
+                penalizedActors.Add(actor);
+            }
+        }
+
+        if (penalizedActors.Count == 0)
+        {
+            int slowestActor = -1;
+            float lowestTimeRemaining = float.MaxValue;
+
+            foreach (var kvp in rule8Clicks)
+            {
+                if (kvp.Value < lowestTimeRemaining)
+                {
+                    lowestTimeRemaining = kvp.Value;
+                    slowestActor = kvp.Key;
+                }
+            }
+
+            if (slowestActor >= 0)
+            {
+                penalizedActors.Add(slowestActor);
+            }
+        }
+
+        if (penalizedActors.Count > 0)
+        {
+            string victims = "";
+            foreach (int actor in penalizedActors)
+            {
+                // Add 2 penalty cards
+                hands[actor].Add(DrawFromPile());
+                hands[actor].Add(DrawFromPile());
+                victims += "Player " + actor + " ";
+            }
+
+            BroadcastState("Too slow! Penalty (+2 cards) given to: " + victims);
+        }
+
+        rule8Clicks.Clear();
+        MoveTurn(1);
     }
 
     private bool CanPlay(int actor, NetCard card)
@@ -479,6 +674,9 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback,
         packet.pendingPenalty = pendingPenalty;
         packet.previousPenaltyValue = previousPenaltyValue;
         packet.waitingAfterDrawActor = waitingAfterDrawActor;
+        packet.waitingForSlapActor = waitingForSlapActor;
+        packet.rule8Active = rule8Active;
+        packet.rule8Timer = rule8Timer;
         packet.message = message;
         packet.gameOver = false;
         packet.winnerActorNumber = -1;
@@ -517,6 +715,9 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback,
         packet.pendingPenalty = pendingPenalty;
         packet.previousPenaltyValue = previousPenaltyValue;
         packet.waitingAfterDrawActor = -1;
+        packet.waitingForSlapActor = -1;
+        packet.rule8Active = false;
+        packet.rule8Timer = 0f;
         packet.message = "Player " + winnerActor + " wins!";
         packet.gameOver = true;
         packet.winnerActorNumber = winnerActor;
@@ -572,6 +773,17 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback,
 
         bool canEndTurn = lastState.waitingAfterDrawActor == PhotonNetwork.LocalPlayer.ActorNumber;
         if (endTurnButton != null) endTurnButton.SetActive(canEndTurn);
+
+        // Check if we're waiting for slap
+        bool needsSlap = lastState.waitingForSlapActor == PhotonNetwork.LocalPlayer.ActorNumber;
+        if (slapSelectorPanel != null) slapSelectorPanel.SetActive(needsSlap);
+
+        // Check if Rule of 8 is active
+        if (slap8Button != null) slap8Button.SetActive(rule8Active);
+        if (slap8TimerText != null && rule8Active)
+        {
+            slap8TimerText.text = Mathf.Max(0, rule8Timer).ToString("F1");
+        }
     }
 
     private void RefreshHandUI()
@@ -646,7 +858,7 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback,
 
     public void OnPhotonSerializeView(PhotonStream stream, PhotonMessageInfo info)
     {
-        
+
     }
 }
 
@@ -676,6 +888,9 @@ public class GameStatePacket
     public int pendingPenalty;
     public int previousPenaltyValue;
     public int waitingAfterDrawActor;
+    public int waitingForSlapActor;
+    public bool rule8Active;
+    public float rule8Timer;
     public bool gameOver;
     public int winnerActorNumber;
     public string message;

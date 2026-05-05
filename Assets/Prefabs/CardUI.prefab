@@ -86,7 +86,6 @@ MonoBehaviour:
   m_GameObject: {fileID: 4314973128133459924}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ccac9dd5805c0654f800d4eadb680da0, type: 3}
+  m_Script: {fileID: 11500000, guid: d9e29ce0bf229f04aa2adc9ff60c8577, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  cardData: {fileID: 0}
