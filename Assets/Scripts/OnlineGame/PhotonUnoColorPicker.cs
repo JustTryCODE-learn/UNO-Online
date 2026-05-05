@@ -3,17 +3,15 @@ using UnityEngine;
 public class PhotonUnoColorPicker : MonoBehaviour
 {
     private PhotonUnoGameManager gameManager;
-    private int pendingCardInstanceId = -1;
 
     private void Awake()
     {
         gameObject.SetActive(false);
     }
 
-    public void Show(PhotonUnoGameManager manager, int cardInstanceId)
+    public void Show(PhotonUnoGameManager manager)
     {
         gameManager = manager;
-        pendingCardInstanceId = cardInstanceId;
         gameObject.SetActive(true);
     }
 
@@ -39,11 +37,9 @@ public class PhotonUnoColorPicker : MonoBehaviour
 
     private void SelectColor(int color)
     {
-        if (gameManager == null || pendingCardInstanceId < 0) return;
+        if (gameManager == null) return;
 
-        gameManager.RequestPlayCard(pendingCardInstanceId, color);
-
-        pendingCardInstanceId = -1;
+        gameManager.RequestPlaySelectedCardsWithColor(color);
         gameObject.SetActive(false);
     }
 }

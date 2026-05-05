@@ -19,6 +19,13 @@ public class RoomManager : MonoBehaviourPunCallbacks
 
     private const string READY_KEY = "Ready";
 
+    private void Awake()
+    {
+        // This ensures that when the MasterClient calls PhotonNetwork.LoadLevel(),
+        // all other players in the room load the same level automatically.
+        PhotonNetwork.AutomaticallySyncScene = true;
+    }
+
     private void Start()
     {
         // Host does not need to ready.
