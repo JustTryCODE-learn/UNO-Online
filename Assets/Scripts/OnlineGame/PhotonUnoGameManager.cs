@@ -13,6 +13,13 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
     private const byte REQ_DRAW_CARD = 2;
     private const byte REQ_PASS = 3;
     private const byte STATE_UPDATE = 20;
+    private const byte REQ_CHOOSE_DIRECTION = 4;
+    private const byte REQ_CHOOSE_SWAP_TARGET = 5;
+    private const byte REQ_REACTION_RESPONSE = 6;
+    private const byte REQ_RULE_0_ROTATE = 7;
+    private const byte REQ_RULE_7_SWAP = 8;
+    private const byte START_REACTION_EVENT = 9;
+    private const byte REQ_REACTION_CLICK = 10;
 
     [Header("Card Assets - same order on all clients")]
     public List<UnoCard> allCards = new List<UnoCard>();
@@ -32,6 +39,10 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
     public GameObject playButton;
     public GameObject drawButton;
 
+    public GameObject playerPickerPanel;
+    public GameObject playerButtonPrefab;
+    public Transform playerButtonContainer;
+
     private readonly List<int> actorOrder = new List<int>();
     private readonly Dictionary<int, List<NetCard>> hands = new Dictionary<int, List<NetCard>>();
     private readonly List<NetCard> drawPile = new List<NetCard>();
@@ -48,6 +59,11 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
     private int nextInstanceId = 1;
     private bool hostHasDrawn = false;
     private bool isAnimatingCards = false;
+
+    private bool reactionWindowActive = false;
+    private int reactionTargetActor = -1;
+    private float reactionTimer = 0f;
+    private const float REACTION_DURATION = 2.5f;
 
     private GameStatePacket lastState;
 
@@ -293,6 +309,47 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
             int actor = (int)photonEvent.CustomData;
             HostPass(actor);
         }
+
+        if (photonEvent.Code == START_REACTION_EVENT)
+        {
+            int targetActor = (int)photonEvent.CustomData;
+            if (targetActor == PhotonNetwork.LocalPlayer.ActorNumber)
+            {
+                // Show your "UNO!" UI button here
+                // unoButton.SetActive(true);
+            }
+        }
+        else if (photonEvent.Code == REQ_REACTION_CLICK && PhotonNetwork.IsMasterClient)
+        {
+            reactionWindowActive = false;
+            BroadcastState("Player " + (int)photonEvent.CustomData + " said UNO!");
+        }
+
+        switch (photonEvent.Code)
+        {
+            case REQ_PLAY_SELECTED_CARDS:
+                object[] playData = (object[])photonEvent.CustomData;
+                HostPlaySelectedCards((int)playData[0], (int[])playData[1], (int)playData[2]);
+                break;
+
+            case REQ_RULE_0_ROTATE: // Handler for 0
+                int actingPlayer = (int)photonEvent.CustomData;
+                HostRotateHands(actingPlayer);
+                break;
+
+            case REQ_CHOOSE_SWAP_TARGET: // Handler for 7
+                object[] swapData = (object[])photonEvent.CustomData;
+                HostSwapHands((int)swapData[0], (int)swapData[1]);
+                break;
+
+            case REQ_DRAW_CARD:
+                HostDrawCard((int)photonEvent.CustomData);
+                break;
+
+            case REQ_PASS:
+                HostPass((int)photonEvent.CustomData);
+                break;
+        }
     }
 
     public void ToggleSelectedCard(int instanceId)
@@ -341,7 +398,7 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
         {
             return CanPlay(PhotonNetwork.LocalPlayer.ActorNumber, card);
         }
-        
+
         // If cards are selected, only cards that can be added to the current set (same value) are valid
         return CanAddCardToSelection(instanceId);
     }
@@ -420,6 +477,10 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
             return;
         }
 
+        NetCard firstCard = FindLocalCardById(selectedCardIds[0]);
+        if (firstCard == null) return;
+        UnoCard data = allCards[firstCard.cardIndex];
+
         if (SelectionContainsWild())
         {
             PhotonUnoColorPicker picker = colorPickerPanel.GetComponent<PhotonUnoColorPicker>();
@@ -434,7 +495,31 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
             return;
         }
 
+        if (data.value == UnoCard.CardValue.Seven)
+        {
+            SetStatus("7 Played! Choose a player to swap hands with.");
+            OpenPlayerPicker();
+            return;
+        }
+
+        if (data.value == UnoCard.CardValue.Zero)
+        {
+            SetStatus("0 Played! All hands will rotate in " + (clockwise ? "clockwise" : "counter-clockwise") + " direction.");
+            RequestRotateHands();
+            return;
+        }
+
         SendPlaySelectedRequest(-1);
+    }
+
+    private void RequestRotateHands()
+    {
+        PhotonNetwork.RaiseEvent(
+            REQ_RULE_0_ROTATE,
+            PhotonNetwork.LocalPlayer.ActorNumber,
+            new RaiseEventOptions { Receivers = ReceiverGroup.MasterClient },
+            new SendOptions { Reliability = true }
+        );
     }
 
     public void RequestPlaySelectedCardsWithColor(int chosenColor)
@@ -478,7 +563,7 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
         isAnimatingCards = true;
 
         List<RectTransform> cardRects = new List<RectTransform>();
-        
+
         // 1. Immediately find and detach ALL cards so they aren't destroyed by RefreshHandUI
         Canvas canvas = handParent.GetComponentInParent<Canvas>();
         Transform animLayer = (canvas != null) ? canvas.transform : handParent.parent;
@@ -490,12 +575,12 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
             {
                 // Move to root canvas and to the front of the draw order
                 // worldPositionStays = true ensures it doesn't jump when parent changes
-                cardObj.transform.SetParent(animLayer, true); 
+                cardObj.transform.SetParent(animLayer, true);
                 cardObj.transform.SetAsLastSibling();
-                
+
                 PhotonUnoCardButton btn = cardObj.GetComponent<PhotonUnoCardButton>();
                 if (btn != null) btn.enabled = false;
-                
+
                 cardRects.Add(cardObj.GetComponent<RectTransform>());
             }
         }
@@ -528,10 +613,10 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
 
         Vector3 startPos = rect.position;
         Vector3 targetPos = discardImage.rectTransform.position;
-        
+
         Quaternion startRot = rect.rotation;
         Quaternion targetRot = Quaternion.identity;
-        
+
         Vector3 startScale = rect.localScale;
         Vector3 targetScale = discardImage.rectTransform.localScale;
 
@@ -574,6 +659,45 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
             }
         }
         return null;
+    }
+
+    private void HostRotateHands(int actor)
+    {
+        NetCard zeroCard = hands[actor].Find(c => allCards[c.cardIndex].value == UnoCard.CardValue.Zero);
+        if (zeroCard != null)
+        {
+            hands[actor].Remove(zeroCard);
+            discardPile.Add(zeroCard);
+        }
+        List<int> actors = new List<int>(actorOrder);
+        Dictionary<int, List<NetCard>> newHands = new Dictionary<int, List<NetCard>>();
+        for (int i = 0; i < actors.Count; i++)
+        {
+            int nextIndex = Mod(i + (clockwise ? 1 : -1), actors.Count);
+            newHands[actors[nextIndex]] = hands[actors[i]];
+        }
+        foreach (var entry in newHands)
+        {
+            hands[entry.Key] = entry.Value;
+        }
+        MoveTurn(1);
+        BroadcastState("0 Played! Hands rotated " + (clockwise ? "Clockwise" : "Counter-Clockwise"));
+    }
+
+    private void HostSwapHands(int actor, int targetActorId)
+    {
+        NetCard sevenCard = hands[actor].Find(c => allCards[c.cardIndex].value == UnoCard.CardValue.Seven);
+        if (sevenCard != null)
+        {
+            hands[actor].Remove(sevenCard);
+            discardPile.Add(sevenCard);
+        }
+        List<NetCard> handA = new List<NetCard>(hands[actor]);
+        List<NetCard> handB = new List<NetCard>(hands[targetActorId]);
+        hands[actor] = handB;
+        hands[targetActorId] = handA;
+        MoveTurn(1);
+        BroadcastState("Player " + actor + " swapped hands with Player " + targetActorId + "!");
     }
 
     public void RequestDrawCard()
@@ -672,9 +796,47 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
             return;
         }
 
+        if (hands[actor].Count == 1)
+        {
+            StartReactionWindow(actor);
+        }
+
         ApplySelectedCardEffects(selectedCards);
 
         BroadcastState("Played " + selectedCards.Count + " card(s).");
+    }
+
+    private void StartReactionWindow(int actor)
+    {
+        reactionWindowActive = true;
+        reactionTargetActor = actor;
+        reactionTimer = REACTION_DURATION;
+
+        PhotonNetwork.RaiseEvent(START_REACTION_EVENT, actor,
+            new RaiseEventOptions { Receivers = ReceiverGroup.All },
+            new SendOptions { Reliability = true });
+    }
+
+    private void Update()
+    {
+        if (!PhotonNetwork.IsMasterClient || !reactionWindowActive) return;
+
+        reactionTimer -= Time.deltaTime;
+        if (reactionTimer <= 0)
+        {
+            reactionWindowActive = false;
+            ApplyUnoPenalty(reactionTargetActor);
+        }
+    }
+
+    private void ApplyUnoPenalty(int actor)
+    {
+        for (int i = 0; i < 2; i++)
+        {
+            NetCard drawn = DrawFromPile();
+            if (drawn != null) hands[actor].Add(drawn);
+        }
+        BroadcastState("Player " + actor + " forgot to say UNO! +2 cards.");
     }
 
     private bool AreSelectedCardsValid(int actor, List<NetCard> selectedCards, int chosenColor)
@@ -835,7 +997,7 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
         int currentPenalty = PhotonNetwork.IsMasterClient ? pendingPenalty : (lastState != null ? lastState.pendingPenalty : 0);
         int currentPrevPenalty = PhotonNetwork.IsMasterClient ? previousPenaltyValue : (lastState != null ? lastState.previousPenaltyValue : 0);
         int currentActiveColor = PhotonNetwork.IsMasterClient ? activeColor : (lastState != null ? lastState.activeColor : 0);
-        
+
         NetCard topNetCard = null;
         if (PhotonNetwork.IsMasterClient)
         {
@@ -1347,7 +1509,7 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
         if (button != null)
         {
             if (buttonText != null) buttonText.text = "Draw";
-            
+
             // Only interactable if it's my turn, I haven't drawn yet, and I have no legal moves
             button.interactable = IsMyTurn() && (lastState == null || !lastState.hasDrawn) && !HasAnyLegalMove();
         }
@@ -1394,6 +1556,43 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
         return lastState != null &&
                lastState.currentActorNumber == PhotonNetwork.LocalPlayer.ActorNumber &&
                !lastState.gameOver;
+    }
+
+    // --- HOUSE RULE 7 LOGIC ---
+    public void OpenPlayerPicker()
+    {
+        if (playerPickerPanel != null)
+        {
+            playerPickerPanel.SetActive(true);
+        }
+        foreach (Transform child in playerButtonContainer)
+        {
+            Destroy(child.gameObject);
+        }
+        foreach (var player in Photon.Pun.PhotonNetwork.PlayerList)
+        {
+            if (player.IsLocal) continue;
+            GameObject btnObj = Instantiate(playerButtonPrefab, playerButtonContainer);
+            TMPro.TMP_Text btnText = btnObj.GetComponentInChildren<TMPro.TMP_Text>();
+            if (btnText != null)
+            {
+                btnText.text = "Swap with Player " + player.ActorNumber;
+            }
+            int targetId = player.ActorNumber;
+            btnObj.GetComponent<UnityEngine.UI.Button>().onClick.AddListener(() =>
+            {
+                SendSwapRequest(targetId);
+                playerPickerPanel.SetActive(false);
+            });
+        }
+    }
+    private void SendSwapRequest(int targetId)
+    {
+        object[] data = new object[] { PhotonNetwork.LocalPlayer.ActorNumber, targetId };
+        RaiseEventOptions reo = new RaiseEventOptions { Receivers = ReceiverGroup.MasterClient };
+        SendOptions so = new SendOptions { Reliability = true };
+
+        PhotonNetwork.RaiseEvent(REQ_CHOOSE_SWAP_TARGET, data, reo, so);
     }
 }
 
