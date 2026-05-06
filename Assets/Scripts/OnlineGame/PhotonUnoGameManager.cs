@@ -25,6 +25,7 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
     public TMP_Text statusText;
     public TMP_Text opponentText;
     public TMP_Text directionText;
+    public Image directionImage;
     public TMP_Text penaltyText;
     public TMP_Text selectionWarningText;
 
@@ -336,14 +337,48 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
         NetCard card = FindLocalCardById(instanceId);
         if (card == null) return false;
 
+        // Get hand size to check winning condition
+        int handCount = 0;
+        if (lastState != null)
+        {
+            int localActor = PhotonNetwork.LocalPlayer.ActorNumber;
+            foreach (var hand in lastState.hands)
+            {
+                if (hand.actorNumber == localActor)
+                {
+                    handCount = hand.cards.Count;
+                    break;
+                }
+            }
+        }
+
         // If nothing selected, any card that can be played on the pile is valid
         if (selectedCardIds.Count == 0)
         {
-            return CanPlay(PhotonNetwork.LocalPlayer.ActorNumber, card);
+            if (!CanPlay(PhotonNetwork.LocalPlayer.ActorNumber, card)) return false;
+
+            // Rule: Cannot win with special cards
+            if (handCount == 1 && IsNonWinningFinalCard(GetData(card)))
+            {
+                return false;
+            }
+
+            return true;
         }
         
         // If cards are selected, only cards that can be added to the current set (same value) are valid
-        return CanAddCardToSelection(instanceId);
+        if (!CanAddCardToSelection(instanceId)) return false;
+
+        // Rule: Cannot win with special cards (even in a set)
+        if (handCount > 0 && handCount == selectedCardIds.Count + 1)
+        {
+            if (IsNonWinningFinalCard(GetData(card)))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public void RefreshAllCardVisuals()
@@ -1044,6 +1079,11 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
                 : "Direction: Counter-clockwise";
         }
 
+        if (directionImage != null)
+        {
+            directionImage.rectTransform.localScale = new Vector3(1, lastState.clockwise ? 1 : -1, 1);
+        }
+
         if (penaltyText != null)
         {
             penaltyText.text = lastState.pendingPenalty > 0
@@ -1346,10 +1386,13 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
 
         if (button != null)
         {
-            if (buttonText != null) buttonText.text = "Draw";
+            bool canDraw = IsMyTurn() && (lastState == null || !lastState.hasDrawn) && !HasAnyLegalMove();
+            button.interactable = canDraw;
             
-            // Only interactable if it's my turn, I haven't drawn yet, and I have no legal moves
-            button.interactable = IsMyTurn() && (lastState == null || !lastState.hasDrawn) && !HasAnyLegalMove();
+            if (buttonText != null)
+            {
+                buttonText.text = canDraw ? "Draw" : "";
+            }
         }
     }
 
@@ -1371,9 +1414,21 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
 
         if (myHand == null) return false;
 
+        // Rule: if they have only 1 card and it is special, they must draw
+        if (myHand.cards.Count == 1 && IsNonWinningFinalCard(GetData(myHand.cards[0])))
+        {
+            return false;
+        }
+
         foreach (NetCard card in myHand.cards)
         {
-            if (CanPlay(localActor, card)) return true;
+            if (CanPlay(localActor, card))
+            {
+                // Note: IsCardValidToPlay handles the logic for sets and single card wins,
+                // but for HasAnyLegalMove, we just need to know if there's ANY valid starting move.
+                // We already checked the single-card case above.
+                return true;
+            }
         }
 
         return false;
@@ -1387,6 +1442,15 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
         }
 
         Debug.Log(message);
+    }
+
+    private void Update()
+    {
+        if (directionImage != null && lastState != null)
+        {
+            float speed = lastState.clockwise ? -100f : 100f;
+            directionImage.transform.Rotate(0, 0, speed * Time.deltaTime);
+        }
     }
 
     public bool IsMyTurn()
