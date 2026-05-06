@@ -728,19 +728,16 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
     {
         if (!IsCurrentActor(actor))
         {
-            BroadcastState("Invalid move: not your turn.");
             return;
         }
 
         if (instanceIds == null || instanceIds.Length == 0)
         {
-            BroadcastState("Invalid move: no cards selected.");
             return;
         }
 
         if (!hands.ContainsKey(actor))
         {
-            BroadcastState("Invalid move: player hand not found.");
             return;
         }
 
@@ -752,13 +749,11 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
 
             if (card == null)
             {
-                BroadcastState("Invalid move: selected card not found.");
                 return;
             }
 
             if (selectedCards.Contains(card))
             {
-                BroadcastState("Invalid move: duplicate selected card.");
                 return;
             }
 
@@ -767,7 +762,6 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
 
         if (!AreSelectedCardsValid(actor, selectedCards, chosenColor))
         {
-            BroadcastState("Invalid selected card group.");
             return;
         }
 
@@ -931,30 +925,29 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
     {
         if (!IsCurrentActor(actor))
         {
-            BroadcastState("Invalid draw: not your turn.");
             return;
         }
 
         if (pendingPenalty > 0)
         {
-            for (int i = 0; i < pendingPenalty; i++)
+            int totalToDraw = pendingPenalty;
+
+            for (int i = 0; i < totalToDraw; i++)
             {
                 NetCard penaltyCard = DrawFromPile();
-
                 if (penaltyCard != null)
                 {
                     hands[actor].Add(penaltyCard);
                 }
             }
 
-            int amount = pendingPenalty;
-
             pendingPenalty = 0;
             previousPenaltyValue = 0;
+            hostHasDrawn = false;
 
             MoveTurn(1);
 
-            BroadcastState("Player drew penalty: " + amount);
+            BroadcastState("Player " + actor + " drew " + totalToDraw + " cards!");
             return;
         }
 
@@ -968,7 +961,7 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
             if (CanPlay(actor, drawn))
             {
                 hostHasDrawn = true;
-                BroadcastState("Drew a playable card. You can play it or Pass.");
+                BroadcastState("Player " + actor + " drew a playable card.");
                 return;
             }
         }
@@ -976,7 +969,7 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
         hostHasDrawn = false;
         MoveTurn(1);
 
-        BroadcastState("Drew one card. Turn ended.");
+        BroadcastState("Player " + actor + " drew and passed.");
     }
 
     private void HostPass(int actor)
@@ -985,7 +978,7 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
 
         hostHasDrawn = false;
         MoveTurn(1);
-        BroadcastState("Player passed.");
+        BroadcastState("Player " + actor + " passed.");
     }
 
     private bool CanPlay(int actor, NetCard card)
@@ -1192,29 +1185,52 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
 
     private void RefreshClientUI()
     {
-        if (lastState == null)
+        if (lastState == null) return;
+        int localActor = PhotonNetwork.LocalPlayer.ActorNumber;
+        bool isMyTurn = (lastState.currentActorNumber == localActor);
+
+        string localMessage = "";
+
+        if (isMyTurn)
         {
-            return;
+            localMessage = "<color=green><b>IT IS YOUR TURN!</b></color>\n";
+            if (lastState.pendingPenalty > 0)
+            {
+                if (!HasAnyLegalMove())
+                {
+                    localMessage += "<color=red><b>HELP:</b> You have no valid cards. You MUST draw " + lastState.pendingPenalty + " cards!</color>";
+                }
+                else
+                {
+                    localMessage += "<color=yellow><b>PENALTY:</b> Stack a +" + lastState.previousPenaltyValue + " or draw " + lastState.pendingPenalty + ".</color>";
+                }
+            }
+            else
+            {
+                localMessage += lastState.hasDrawn ? "Play your card or click Pass." : "Select cards to play.";
+            }
+        }
+        else
+        {
+            localMessage = "Waiting for Player " + lastState.currentActorNumber + "...\n";
+            localMessage += "<size=80%>" + lastState.message + "</size>";
         }
 
-        SetStatus(lastState.message + "\nTurn: Player " + lastState.currentActorNumber);
+        SetStatus(localMessage);
 
         if (directionText != null)
         {
-            directionText.text = lastState.clockwise
-                ? "Direction: Clockwise"
-                : "Direction: Counter-clockwise";
+            directionText.text = lastState.clockwise ? "Direction: Clockwise" : "Direction: Counter-clockwise";
         }
 
         if (penaltyText != null)
         {
             penaltyText.text = lastState.pendingPenalty > 0
-                ? "Pending Penalty: +" + lastState.pendingPenalty
-                : "Pending Penalty: None";
+                ? "<color=red>Stack Total: +" + lastState.pendingPenalty + "</color>"
+                : "No Penalty";
         }
 
         UpdateDiscardUI();
-
         RefreshHandUI();
         RefreshOpponentUI();
         UpdatePlayButtonText();
