@@ -6,6 +6,11 @@ public class PhotonOfflineTestStarter : MonoBehaviourPunCallbacks
 {
     public string testRoomName = "OFFLINE_TEST_ROOM";
 
+    [Header("Test Hand Setup")]
+    public bool overrideStartingHand = false;
+    public int startingHandSize = 7;
+    public System.Collections.Generic.List<UnoCard> specificStartingCards;
+
     private void Awake()
     {
         PhotonNetwork.AutomaticallySyncScene = true;
@@ -13,6 +18,14 @@ public class PhotonOfflineTestStarter : MonoBehaviourPunCallbacks
 
     private void Start()
     {
+        PhotonUnoGameManager gameManager = FindObjectOfType<PhotonUnoGameManager>();
+        if (gameManager != null)
+        {
+            gameManager.overrideStartingHand = overrideStartingHand;
+            gameManager.overrideHandSize = startingHandSize;
+            gameManager.specificStartingCards = specificStartingCards;
+        }
+
         if (PhotonNetwork.InRoom)
         {
             return;

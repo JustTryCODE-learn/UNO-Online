@@ -14,8 +14,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   color: 3
   value: 14
+  number: 0
   cardSprite: {fileID: -402845592, guid: 752fdbbc4337fa643a59c3c269f940ea, type: 3}
-  isWild: 0
+  isWild: 1
+  isSkip: 0
+  isReverse: 0
+  isDrawTwo: 0
   redVersion: {fileID: 0}
   blueVersion: {fileID: 0}
   greenVersion: {fileID: 0}

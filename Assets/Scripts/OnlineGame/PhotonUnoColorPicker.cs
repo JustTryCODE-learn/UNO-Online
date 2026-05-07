@@ -4,10 +4,7 @@ public class PhotonUnoColorPicker : MonoBehaviour
 {
     private PhotonUnoGameManager gameManager;
 
-    private void Awake()
-    {
-        gameObject.SetActive(false);
-    }
+    // Removed Awake to prevent auto-disabling when activated for the first time
 
     public void Show(PhotonUnoGameManager manager)
     {
