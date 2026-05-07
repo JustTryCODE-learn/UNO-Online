@@ -4153,7 +4153,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   testRoomName: OFFLINE_TEST_ROOM
-  overrideStartingHand: 1
+  overrideStartingHand: 0
   startingHandSize: 1
   specificStartingCards:
   - {fileID: 11400000, guid: 7045c8a901156db4ab120176fe359265, type: 2}
