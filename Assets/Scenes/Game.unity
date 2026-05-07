@@ -4383,7 +4383,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 0}
+  m_Sprite: {fileID: -1521227389, guid: 752fdbbc4337fa643a59c3c269f940ea, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -4688,8 +4688,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0.5, y: 0}
-  m_AnchoredPosition: {x: -96.5, y: -393}
-  m_SizeDelta: {x: 713, y: 180}
+  m_AnchoredPosition: {x: -218.84906, y: -666.9433}
+  m_SizeDelta: {x: 1028.9252, y: 410.869}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1978119662
 MonoBehaviour:
@@ -4704,11 +4704,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   firstCardPosition: {x: -350, y: 0}
-  cardSpacing: 55
-  curveHeight: 25
-  maxRotation: 18
-  handWidth: 700
-  normalScale: 1
+  cardSpacing: 100
+  curveHeight: 35
+  maxRotation: 22
+  handWidth: 900
+  normalScale: 1.5
   lockThisContainer: 1
   lockParentChain: 1
 --- !u!1 &2007366951
