@@ -21,6 +21,7 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
     private const byte START_REACTION_EVENT = 9;
     private const byte REQ_REACTION_CLICK = 10;
     private const byte END_REACTION_EVENT = 11;
+    private const byte ANIMATE_DRAW_EVENT = 12;
 
     [Header("Card Assets - same order on all clients")]
     public List<UnoCard> allCards = new List<UnoCard>();
@@ -289,6 +290,14 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
         activeColor = (int)firstData.color;
 
         BroadcastState("Game started.");
+
+        foreach (int actor in actorOrder)
+        {
+            if (hands.ContainsKey(actor))
+            {
+                BroadcastDrawAnimation(actor, hands[actor].Count);
+            }
+        }
     }
 
     private void BuildDeck()
@@ -425,6 +434,11 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
                         new SendOptions { Reliability = true });
                 }
             }
+        }
+        else if (photonEvent.Code == ANIMATE_DRAW_EVENT)
+        {
+            int[] data = (int[])photonEvent.CustomData;
+            StartCoroutine(AnimateDrawCards(data[0], data[1]));
         }
 
         if (!PhotonNetwork.IsMasterClient)
@@ -786,6 +800,102 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
         Destroy(rect.gameObject);
     }
 
+    private void BroadcastDrawAnimation(int actor, int count)
+    {
+        PhotonNetwork.RaiseEvent(
+            ANIMATE_DRAW_EVENT,
+            new int[] { actor, count },
+            new RaiseEventOptions { Receivers = ReceiverGroup.All },
+            new SendOptions { Reliability = true }
+        );
+    }
+
+    private System.Collections.IEnumerator AnimateDrawCards(int actor, int count)
+    {
+        if (drawButton == null) yield break;
+
+        Transform targetTransform = null;
+        if (actor == PhotonNetwork.LocalPlayer.ActorNumber)
+        {
+            targetTransform = handParent;
+        }
+        else
+        {
+            if (lastState != null && lastState.actorNumbers != null)
+            {
+                int localActor = PhotonNetwork.LocalPlayer.ActorNumber;
+                int myIndex = lastState.actorNumbers.IndexOf(localActor);
+                if (myIndex != -1)
+                {
+                    int opponentCount = lastState.actorNumbers.Count - 1;
+                    for (int i = 0; i < opponentCount; i++)
+                    {
+                        if (i >= opponentTexts.Length) break;
+                        int opIndex = (myIndex + i + 1) % lastState.actorNumbers.Count;
+                        if (lastState.actorNumbers[opIndex] == actor)
+                        {
+                            targetTransform = opponentTexts[i].transform;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (targetTransform == null) yield break;
+
+        Canvas canvas = drawButton.GetComponentInParent<Canvas>();
+        Transform animLayer = (canvas != null) ? canvas.transform : drawButton.transform.parent;
+
+        float delayBetweenCards = count > 1 ? 0.5f / count : 0f;
+        float moveDuration = 0.5f;
+
+        for (int i = 0; i < count; i++)
+        {
+            GameObject dummy = Instantiate(cardPrefab, animLayer);
+            dummy.transform.position = drawButton.transform.position;
+            dummy.transform.SetAsLastSibling();
+
+            PhotonUnoCardButton btn = dummy.GetComponent<PhotonUnoCardButton>();
+            if (btn != null) btn.enabled = false;
+
+            StartCoroutine(FlyToTarget(dummy.GetComponent<RectTransform>(), targetTransform, moveDuration));
+            yield return new WaitForSeconds(delayBetweenCards);
+        }
+    }
+
+    private System.Collections.IEnumerator FlyToTarget(RectTransform rect, Transform target, float duration)
+    {
+        if (rect == null || target == null) yield break;
+
+        Vector3 startPos = rect.position;
+        Vector3 startScale = rect.localScale;
+        
+        float elapsed = 0;
+        while (elapsed < duration)
+        {
+            if (rect == null || target == null) yield break;
+
+            elapsed += Time.deltaTime;
+            float t = elapsed / duration;
+            float easedT = t * t * (3f - 2f * t);
+
+            rect.position = Vector3.Lerp(startPos, target.position, easedT);
+            
+            if (target != handParent)
+            {
+                rect.localScale = Vector3.Lerp(startScale, startScale * 0.5f, easedT);
+            }
+
+            yield return null;
+        }
+
+        if (rect != null)
+        {
+            Destroy(rect.gameObject);
+        }
+    }
+
     private GameObject FindCardGameObject(int instanceId)
     {
         if (handParent == null) return null;
@@ -1022,6 +1132,7 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
 
             MoveTurn(1);
 
+            BroadcastDrawAnimation(actor, amount);
             BroadcastState("Player drew penalty: " + amount);
             return;
         }
@@ -1036,6 +1147,7 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
             if (CanPlay(actor, drawn))
             {
                 hostHasDrawn = true;
+                BroadcastDrawAnimation(actor, 1);
                 BroadcastState("Drew a playable card. You can play it or Pass.");
                 return;
             }
@@ -1044,6 +1156,7 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
         hostHasDrawn = false;
         MoveTurn(1);
 
+        BroadcastDrawAnimation(actor, 1);
         BroadcastState("Drew one card. Turn ended.");
     }
 
@@ -1652,12 +1765,32 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
 
         if (button != null)
         {
-            bool canDraw = IsMyTurn() && (lastState == null || !lastState.hasDrawn) && !HasAnyLegalMove();
+            bool canDraw = false;
+
+            if (IsMyTurn() && (lastState == null || !lastState.hasDrawn))
+            {
+                if (lastState != null && lastState.pendingPenalty > 0)
+                {
+                    canDraw = true; // Always allow drawing to take the penalty
+                }
+                else
+                {
+                    canDraw = !HasAnyLegalMove(); // Normal draw rules
+                }
+            }
+
             button.interactable = canDraw;
             
             if (buttonText != null)
             {
-                buttonText.text = canDraw ? "Draw" : "";
+                if (lastState != null && lastState.pendingPenalty > 0 && canDraw)
+                {
+                    buttonText.text = "Draw " + lastState.pendingPenalty;
+                }
+                else
+                {
+                    buttonText.text = canDraw ? "Draw" : "";
+                }
             }
         }
     }
@@ -1832,6 +1965,7 @@ public class PhotonUnoGameManager : MonoBehaviourPunCallbacks, IOnEventCallback
                 NetCard drawn = DrawFromPile();
                 if (drawn != null) hands[actor].Add(drawn);
             }
+            BroadcastDrawAnimation(actor, 2);
         }
     }
 
