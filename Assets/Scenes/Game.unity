@@ -1838,7 +1838,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -63, y: 137}
+  m_AnchoredPosition: {x: 127, y: 109}
   m_SizeDelta: {x: 200, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &818251483
@@ -4704,11 +4704,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   firstCardPosition: {x: -350, y: 0}
-  cardSpacing: 100
+  cardSpacing: 120
   curveHeight: 35
   maxRotation: 22
-  handWidth: 900
-  normalScale: 1.5
+  handWidth: 1200
+  normalScale: 2
   lockThisContainer: 1
   lockParentChain: 1
 --- !u!1 &2007366951
